@@ -28,7 +28,7 @@ def recommend():
    #using the extract function to get a features dataframe
       df = extract(URL)
    #retrieve the results and get as many recommendations as the user requested
-   edm_top40 = recommend_from_playlist(songDF, complete_feature_set, df)
+   edm_top40 = recommend_from_playlist(URL,songDF, complete_feature_set, df)
    number_of_recs = int(request.form['number-of-recs'])
    my_songs = []
    for i in range(number_of_recs):

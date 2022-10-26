@@ -5,8 +5,11 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from textblob import TextBlob
 import re
 
-
-def generate_playlist_feature(complete_feature_set, playlist_df):
+import spotipy
+from spotipy.oauth2 import SpotifyClientCredentials
+import json
+import pandas as pd
+def generate_playlist_feature(URL,complete_feature_set, playlist_df):
     '''
     Summarize a user's playlist into a single vector
     ---
@@ -22,8 +25,25 @@ def generate_playlist_feature(complete_feature_set, playlist_df):
     # Find song features in the playlist
     complete_feature_set_playlist = complete_feature_set[complete_feature_set['id'].isin(playlist_df['id'].values)]
     # Find all non-playlist song features
+        
+    if complete_feature_set_playlist.empty==True:
+        client_id = "5356afb958c84e71a2c37c43e2a2cbf2" 
+        client_secret = "83e531491e9c458ba658ac30c4c56bc0"
+
+        #use the clint secret and id details
+        client_credentials_manager = SpotifyClientCredentials(client_id=client_id,client_secret=client_secret)
+        sp = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
+        playlist_id = URL.split("/")[4].split("?")[0]
+        playlist_tracks_data = sp.playlist_tracks(playlist_id)
+
+        playlist_tracks_id = []
+        for track in playlist_tracks_data['items']:
+            playlist_tracks_id.append(track['track']['id'])
+        features = sp.audio_features(playlist_tracks_id)
+        complete_feature_set_playlist = pd.DataFrame(data=features, columns=features[0].keys())
+        complete_feature_set_playlist=complete_feature_set_playlist[['danceability','energy','loudness','speechiness','acousticness','instrumentalness','liveness','valence','tempo','key','mode','duration_ms','id']]
     complete_feature_set_nonplaylist = complete_feature_set[~complete_feature_set['id'].isin(playlist_df['id'].values)]
-    complete_feature_set_playlist_final = complete_feature_set_playlist.drop(columns = "id")
+    complete_feature_set_playlist_final = complete_feature_set_playlist.drop(columns = "id")    
     return complete_feature_set_playlist_final.sum(axis = 0), complete_feature_set_nonplaylist
 
 
@@ -43,15 +63,15 @@ def generate_playlist_recos(df, features, nonplaylist_features):
     non_playlist_df = df[df['id'].isin(nonplaylist_features['id'].values)]
     # Find cosine similarity between the playlist and the complete song set
     non_playlist_df['sim'] = cosine_similarity(nonplaylist_features.drop('id', axis = 1).values, features.values.reshape(1, -1))[:,0]
-    non_playlist_df_top_40 = non_playlist_df.sort_values('sim',ascending = False).head(40)
-    
+    non_playlist_df_top_40 = non_playlist_df.sort_values('sim',ascending = False).head(50)
+    non_playlist_df_top_40=non_playlist_df_top_40[non_playlist_df_top_40.pos>90]
     return non_playlist_df_top_40
 
 
-def recommend_from_playlist(songDF,complete_feature_set,playlistDF_test):
+def recommend_from_playlist(URL,songDF,complete_feature_set,playlistDF_test):
 
     # Find feature
-    complete_feature_set_playlist_vector, complete_feature_set_nonplaylist = generate_playlist_feature(complete_feature_set, playlistDF_test)
+    complete_feature_set_playlist_vector, complete_feature_set_nonplaylist = generate_playlist_feature(URL,complete_feature_set, playlistDF_test)
     
     # Generate recommendation
     top40 = generate_playlist_recos(songDF, complete_feature_set_playlist_vector, complete_feature_set_nonplaylist)
